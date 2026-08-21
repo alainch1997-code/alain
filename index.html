@@ -85,11 +85,22 @@
       const inFlightWrites = useRef(0);
       const unsavedNotes = useRef({});
       const noteTimers = useRef({});
+      // Also shield reminderType changes while in flight
+      const unsavedReminderType = useRef({});
 
       const mergeServerClients = useCallback((serverClients) => {
         setClients(serverClients.map(client => {
           const pendingNote = unsavedNotes.current[client.id];
-          return pendingNote === undefined ? client : { ...client, note: pendingNote };
+          const pendingReminder = unsavedReminderType.current[client.id];
+          
+          let merged = client;
+          if (pendingNote !== undefined) {
+            merged = { ...merged, note: pendingNote };
+          }
+          if (pendingReminder !== undefined) {
+            merged = { ...merged, reminderType: pendingReminder };
+          }
+          return merged;
         }));
       }, []);
 
@@ -191,6 +202,31 @@
               }
             });
         }, 700);
+      };
+
+      // Handle reminder type change - shield it from polling while in flight
+      const handleReminderTypeChange = (id, value) => {
+        // Shield this value from being overwritten by polling
+        unsavedReminderType.current[id] = value;
+        
+        // Update UI immediately
+        setClients(current => current.map(client => (
+          client.id === id ? { ...client, reminderType: value } : client
+        )));
+
+        // Persist to server
+        runWrite(() => callApi(`/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ reminderType: value })
+        }))
+          .catch(() => {})
+          .finally(() => {
+            // Once the write completes, we can stop shielding
+            // because the server now has the correct value
+            if (unsavedReminderType.current[id] === value) {
+              delete unsavedReminderType.current[id];
+            }
+          });
       };
 
       const handleDeleteClient = (id) => {
@@ -361,11 +397,6 @@
         const matchesSurvey = surveyFilter === "All survey statuses" || client.surveyStatus === surveyFilter;
         return matchesSearch && matchesAction && matchesSurvey;
       });
-
-      const handleReminderTypeChange = (clientId, value) => {
-        // Prevent default form submission behavior
-        handleClientUpdate(clientId, { reminderType: value });
-      };
 
       return (
         <div className="min-h-screen bg-[#F8F6FA] text-[#332D38] pb-12">
@@ -580,7 +611,7 @@
                             </select>
                             {client.reminderType && (
                               <button 
-                                onClick={() => handleClientUpdate(client.id, { reminderType: '', reminderDate: '', reminderTime: '' })}
+                                onClick={() => handleReminderTypeChange(client.id, '')}
                                 className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg border border-red-200 transition"
                               >
                                 Clear
