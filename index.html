@@ -362,6 +362,11 @@
         return matchesSearch && matchesAction && matchesSurvey;
       });
 
+      const handleReminderTypeChange = (clientId, value) => {
+        // Prevent default form submission behavior
+        handleClientUpdate(clientId, { reminderType: value });
+      };
+
       return (
         <div className="min-h-screen bg-[#F8F6FA] text-[#332D38] pb-12">
           {/* Top Header Navigation */}
@@ -563,8 +568,8 @@
                           <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Reminder (Follow-up timeframe):</label>
                           <div className="flex gap-2">
                             <select 
-                              value={client.reminderType}
-                              onChange={(e) => handleClientUpdate(client.id, { reminderType: e.target.value })}
+                              value={client.reminderType || ""}
+                              onChange={(e) => handleReminderTypeChange(client.id, e.target.value)}
                               className="w-full bg-white border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
                             >
                               <option value="">No reminder</option>
@@ -610,8 +615,8 @@
                       )}
 
                       {client.reminderType && (
-                        <div className="mt-3 bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs text-amber-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                          <span>🔔 <strong>Reminder set:</strong> Follow up with {client.name} {client.reminderType === 'custom' ? `on ${client.reminderDate || 'N/A'} at ${client.reminderTime || 'N/A'}` : `in (${client.reminderType})`}.</span>
+                        <div className="mt-3 bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs text-amber-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <span>🔔 <strong>Reminder set:</strong> Follow up with {client.name} {client.reminderType === 'custom' ? `on ${client.reminderDate || 'N/A'} at ${client.reminderTime || 'N/A'}` : `in ${client.reminderType}`}</span>
                           <button 
                             onClick={() => handleSyncToPhone(client)}
                             className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1.5 text-xs"
