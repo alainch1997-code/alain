@@ -1,151 +1,781 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Suite - VIP Bookings</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f9f9f9;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .container {
-            background: #fff;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            width: 100%;
-            max-width: 450px;
-        }
-        h2 {
-            text-align: center;
-            margin-bottom: 25px;
-            color: #111;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-        }
-        input, textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 14px;
-        }
-        button {
-            width: 100%;
-            background-color: #111;
-            color: white;
-            padding: 12px;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: background 0.3s;
-        }
-        button:hover {
-            background-color: #333;
-        }
-        #loading {
-            text-align: center;
-            display: none;
-            margin-top: 10px;
-            color: #666;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIP Styling Suite - Client Survey Response Tracker</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- SheetJS for Excel/CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
-<body>
+<body class="bg-[#F8F6FA] text-[#332D38] font-sans">
+  <div id="root"></div>
 
-    <div class="container">
-        <h2>حجز موعد - The Suite</h2>
-        <form id="bookingForm">
-            <div class="form-group">
-                <label for="name">اسم العميل</label>
-                <input type="text" id="name" required placeholder="أدخل اسم العميل">
-            </div>
-            
-            <div class="form-group">
-                <label for="phone">رقم الهاتف</label>
-                <input type="tel" id="phone" required placeholder="أدخل رقم الهاتف">
-            </div>
-            
-            <div class="form-group">
-                <label for="date">تاريخ الزيارة</label>
-                <input type="date" id="date" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="time">وقت الزيارة</label>
-                <input type="time" id="time" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="notes">ملاحظات</label>
-                <textarea id="notes" rows="3" placeholder="أي تفاصيل إضافية..."></textarea>
-            </div>
-            
-            <button type="submit" id="submitBtn">تأكيد الحجز</button>
-            <div id="loading">جاري حفظ الحجز... يرجى الانتظار</div>
-        </form>
-    </div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
 
-    <script>
-        // رابط الـ Google Apps Script الخاص بك
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzEVz0_vOQqB21HfktWwMStFibsdhbA3NICOCppw1Xy_vvfBxpBWlFtTzOPXk8PW6r-8A/exec";
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzEVz0_vOQqB21HfktWwMStFibsdhbA3NICOCppw1Xy_vvfBxpBWlFtTzOPXk8PW6r-8A/exec';
+    const POLL_INTERVAL_MS = 10000;
 
-        document.getElementById("bookingForm").addEventListener("submit", function(e) {
-            e.preventDefault();
+    function formatTimeAgo(isoString) {
+      if (!isoString) return '';
+      const then = new Date(isoString);
+      if (Number.isNaN(then.getTime())) return '';
 
-            const submitBtn = document.getElementById("submitBtn");
-            const loading = document.getElementById("loading");
+      const diffMs = Date.now() - then.getTime();
+      const diffMinutes = Math.floor(diffMs / 60000);
+      const stamp = then.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
 
-            submitBtn.style.display = "none";
-            loading.style.display = "block";
+      if (diffMinutes < 1) return `Just now, ${stamp}`;
+      if (diffMinutes < 60) return `${diffMinutes}m ago, ${stamp}`;
 
-            const formData = {
-                name: document.getElementById("name").value,
-                phone: document.getElementById("phone").value,
-                date: document.getElementById("date").value,
-                time: document.getElementById("time").value,
-                notes: document.getElementById("notes").value
-            };
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours}h ago, ${stamp}`;
 
-            fetch(SCRIPT_URL, {
-                method: "POST",
-                mode: "no-cors", // ضروري لتجنب مشاكل الـ CORS مع جوجل
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(formData)
-            })
-            .then(() => {
-                alert("تم تسجيل وحفظ الحجز بنجاح على الـ Google Sheet!");
-                document.getElementById("bookingForm").reset();
-            })
-            .catch(error => {
-                console.error("Error!", error);
-                alert("حدث خطأ أثناء حفظ البيانات، يرجى المحاولة مرة أخرى.");
-            })
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays}d ago, ${stamp}`;
+    }
+
+    async function callApi(path, options = {}) {
+      const method = options.method || 'GET';
+      
+      if (method === 'GET') {
+        const response = await fetch(`${API_URL}?action=get`, { method: 'GET', mode: 'cors' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok && payload.error) throw new Error(payload.error);
+        return payload;
+      }
+
+      let bodyData = {};
+      try {
+        if (options.body) bodyData = JSON.parse(options.body);
+      } catch (e) {}
+
+      let action = 'create';
+      if (method === 'PATCH') action = 'update';
+      if (method === 'DELETE') {
+        action = path ? 'delete' : 'deleteAll';
+      }
+      if (method === 'POST' && path) action = 'create';
+      if (method === 'POST' && !path && bodyData.clients) action = 'bulkCreate';
+
+      const payloadToSend = {
+        action: action,
+        id: path ? path.replace('/', '') : bodyData.id,
+        ...bodyData
+      };
+
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payloadToSend)
+      });
+
+      const text = await response.text();
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch (e) {
+        payload = { status: 'success' };
+      }
+
+      if (payload.status === 'error' || payload.error) {
+        throw new Error(payload.error || 'Request failed');
+      }
+      return payload;
+    }
+
+    function App() {
+      const [clients, setClients] = useState([]);
+      const [isLoading, setIsLoading] = useState(true);
+      const [syncError, setSyncError] = useState("");
+      const [lastSyncedAt, setLastSyncedAt] = useState(null);
+      const [legacyLocalRecords, setLegacyLocalRecords] = useState([]);
+
+      const [searchQuery, setSearchQuery] = useState("");
+      const [actionFilter, setActionFilter] = useState("All action statuses");
+      const [surveyFilter, setSurveyFilter] = useState("All survey statuses");
+      const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+      const [newClient, setNewClient] = useState({
+        name: "",
+        phone: "",
+        surveyStatus: "Completed",
+        actionStatus: "Pending Action",
+        note: ""
+      });
+
+      const inFlightWrites = useRef(0);
+      const unsavedNotes = useRef({});
+      const noteTimers = useRef({});
+      const unsavedReminderType = useRef({});
+
+      const mergeServerClients = useCallback((serverClients) => {
+        setClients(serverClients.map(client => {
+          const pendingNote = unsavedNotes.current[client.id];
+          const pendingReminder = unsavedReminderType.current[client.id];
+          
+          let merged = client;
+          if (pendingNote !== undefined) {
+            merged = { ...merged, note: pendingNote };
+          }
+          if (pendingReminder !== undefined) {
+            merged = { ...merged, reminderType: pendingReminder };
+          }
+          return merged;
+        }));
+      }, []);
+
+      const refresh = useCallback(async ({ silent } = {}) => {
+        if (silent && inFlightWrites.current > 0) return;
+        try {
+          const payload = await callApi('', { method: 'GET' });
+          mergeServerClients(payload.clients || []);
+          setLastSyncedAt(new Date());
+          setSyncError("");
+        } catch (error) {
+          setSyncError(error.message);
+        } finally {
+          setIsLoading(false);
+        }
+      }, [mergeServerClients]);
+
+      useEffect(() => {
+        refresh();
+        const interval = setInterval(() => refresh({ silent: true }), POLL_INTERVAL_MS);
+        const onFocus = () => refresh({ silent: true });
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onFocus);
+        return () => {
+          clearInterval(interval);
+          window.removeEventListener('focus', onFocus);
+          document.removeEventListener('visibilitychange', onFocus);
+        };
+      }, [refresh]);
+
+      useEffect(() => {
+        try {
+          const saved = localStorage.getItem('vip_clients_data');
+          if (!saved) return;
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setLegacyLocalRecords(parsed);
+          }
+        } catch (error) {}
+      }, []);
+
+      const runWrite = useCallback(async (writeFn) => {
+        inFlightWrites.current += 1;
+        try {
+          const payload = await writeFn();
+          setSyncError("");
+          return payload;
+        } catch (error) {
+          setSyncError(error.message);
+          throw error;
+        } finally {
+          inFlightWrites.current -= 1;
+          await refresh();
+        }
+      }, [refresh]);
+
+      const totalSubmissions = clients.length;
+      const pendingActionCount = clients.filter(c => c.actionStatus === "Pending Action").length;
+      const remindersDueCount = clients.filter(c => c.reminderType && c.reminderType !== "").length;
+      const appointmentsSetCount = clients.filter(c => c.actionStatus === "Called - Appointment Set").length;
+
+      const handleClientUpdate = (id, fields) => {
+        setClients(current => current.map(client => (
+          client.id === id ? { ...client, ...fields } : client
+        )));
+        runWrite(() => callApi(`/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ id, ...fields })
+        })).catch(() => {});
+      };
+
+      const handleNoteChange = (id, value) => {
+        unsavedNotes.current[id] = value;
+        setClients(current => current.map(client => (
+          client.id === id ? { ...client, note: value } : client
+        )));
+
+        clearTimeout(noteTimers.current[id]);
+        noteTimers.current[id] = setTimeout(() => {
+          runWrite(() => callApi(`/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ id, note: value })
+          }))
+            .catch(() => {})
             .finally(() => {
-                submitBtn.style.display = "block";
-                loading.style.display = "none";
+              if (unsavedNotes.current[id] === value) {
+                delete unsavedNotes.current[id];
+              }
             });
-        });
-    </script>
+        }, 700);
+      };
 
+      const handleReminderTypeChange = (id, value) => {
+        unsavedReminderType.current[id] = value;
+        
+        setClients(current => current.map(client => (
+          client.id === id ? { ...client, reminderType: value } : client
+        )));
+
+        runWrite(() => callApi(`/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ id, reminderType: value })
+        }))
+          .catch(() => {})
+          .finally(() => {
+            if (unsavedReminderType.current[id] === value) {
+              delete unsavedReminderType.current[id];
+            }
+          });
+      };
+
+      const handleDeleteClient = (id) => {
+        if (!window.confirm("Remove this client record for everyone using the app?")) return;
+        setClients(current => current.filter(client => client.id !== id));
+        runWrite(() => callApi(`/${id}`, { method: 'DELETE', body: JSON.stringify({ id }) })).catch(() => {});
+      };
+
+      const handleDeleteAll = () => {
+        if (!window.confirm("Delete ALL customer records from the Google Sheet?")) return;
+        setClients([]);
+        runWrite(() => callApi('', { method: 'DELETE' })).catch(() => {});
+      };
+
+      const handleImportLocalRecords = async () => {
+        const records = legacyLocalRecords.map(record => ({
+          name: record.name,
+          phone: String(record.phone || ''),
+          surveyStatus: record.surveyStatus || 'Completed',
+          actionStatus: record.actionStatus || 'Pending Action',
+          note: record.note || '',
+          reminderType: record.reminderType || '',
+          reminderDate: record.reminderDate || '',
+          reminderTime: record.reminderTime || ''
+        })).filter(record => record.name);
+
+        if (records.length === 0) {
+          setLegacyLocalRecords([]);
+          return;
+        }
+
+        try {
+          await runWrite(() => callApi('', {
+            method: 'POST',
+            body: JSON.stringify({ clients: records })
+          }));
+          localStorage.removeItem('vip_clients_data');
+          setLegacyLocalRecords([]);
+          alert(`Added ${records.length} records to Google Sheets.`);
+        } catch (error) {}
+      };
+
+      const handleDismissLocalRecords = () => {
+        localStorage.removeItem('vip_clients_data');
+        setLegacyLocalRecords([]);
+      };
+
+      const handleSyncToPhone = (client) => {
+        let startTime = "";
+        let endTime = "";
+        if (client.reminderType === 'custom' && client.reminderDate && client.reminderTime) {
+          const cleanDate = client.reminderDate.replace(/-/g, '');
+          const cleanTime = client.reminderTime.replace(/:/g, '') + '00';
+          startTime = `${cleanDate}T${cleanTime}`;
+          endTime = startTime;
+        } else {
+          const now = new Date();
+          now.setHours(now.getHours() + 1);
+          startTime = now.toISOString().replace(/-|:|\.\d\d\d/g, '');
+          endTime = startTime;
+        }
+
+        const icsContent = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'BEGIN:VEVENT',
+          `SUMMARY:Follow up: ${client.name}`,
+          `DESCRIPTION:Phone: ${client.phone} \\nNote: ${client.note || ''}`,
+          `DTSTART:${startTime}`,
+          `DTEND:${endTime}`,
+          'END:VEVENT',
+          'END:VCALENDAR'
+        ].join('\n');
+
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        link.setAttribute('download', `FollowUp_${client.name.replace(/\s+/g, '_')}.ics`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        alert(`Calendar reminder event for ${client.name} downloaded!`);
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const input = e.target;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+          try {
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonRows = XLSX.utils.sheet_to_json(worksheet);
+
+            const importedClients = jsonRows.map((row) => ({
+              name: row.Name || row.name || row['Customer Name'] || "Unknown Customer",
+              phone: String(row.Phone || row.phone || row['Phone Number'] || "N/A"),
+              surveyStatus: row.Survey || row.surveyStatus || "Completed",
+              actionStatus: row.Action || row.actionStatus || "Pending Action",
+              note: row.Note || row.note || ""
+            }));
+
+            if (importedClients.length === 0) {
+              alert("No rows found in that file.");
+              return;
+            }
+
+            await runWrite(() => callApi('', {
+              method: 'POST',
+              body: JSON.stringify({ clients: importedClients })
+            }));
+            alert(`Successfully imported ${importedClients.length} customers to Google Sheets.`);
+          } catch (err) {
+            alert("Error importing that file. Please check format.");
+          } finally {
+            input.value = '';
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      };
+
+      const handleAddManualCustomer = async (e) => {
+        e.preventDefault();
+        if (!newClient.name || !newClient.phone) {
+          alert("Please fill in customer name and phone number.");
+          return;
+        }
+
+        try {
+          await runWrite(() => callApi('', {
+            method: 'POST',
+            body: JSON.stringify(newClient)
+          }));
+          setNewClient({ name: "", phone: "", surveyStatus: "Completed", actionStatus: "Pending Action", note: "" });
+          setIsAddModalOpen(false);
+        } catch (error) {
+          alert("Could not save customer.");
+        }
+      };
+
+      const simulateSubmission = () => {
+        const names = ["Zena Saab", "Karim Khoury", "Maya El Mir", "Hassan Sleiman"];
+        const randomName = names[Math.floor(Math.random() * names.length)];
+        runWrite(() => callApi('', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: randomName,
+            phone: `+961 ${Math.floor(70000000 + Math.random() * 9000000)}`,
+            surveyStatus: "Completed",
+            actionStatus: "Pending Action",
+            note: ""
+          })
+        })).catch(() => {});
+      };
+
+      const filteredClients = clients.filter(client => {
+        const matchesSearch = (client.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+                              (client.phone || "").includes(searchQuery);
+        const matchesAction = actionFilter === "All action statuses" || client.actionStatus === actionFilter;
+        const matchesSurvey = surveyFilter === "All survey statuses" || client.surveyStatus === surveyFilter;
+        return matchesSearch && matchesAction && matchesSurvey;
+      });
+
+      return (
+        <div className="min-h-screen bg-[#F8F6FA] text-[#332D38] pb-12">
+          {/* Top Header Navigation */}
+          <header className="bg-white border-b border-[#EADCEF] px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+            <div>
+              <h1 className="text-2xl font-bold tracking-wide flex items-center gap-2 text-[#4A2E5D]">
+                👑 VIP Styling Suite
+              </h1>
+              <p className="text-xs text-[#7B5B8E] mt-1 font-medium">Follow-Up Desk · Google Sheets Powered Tracker</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="bg-[#6B3FA0] hover:bg-[#5A3289] text-white text-sm font-medium px-4 py-2 rounded-lg cursor-pointer shadow transition flex items-center gap-2">
+                📁 Upload Excel
+                <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" />
+              </label>
+
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition flex items-center gap-2"
+              >
+                ➕ Add Customer
+              </button>
+
+              <button 
+                onClick={simulateSubmission}
+                className="bg-[#7B5B8E] hover:bg-[#6A4B7D] text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition flex items-center gap-2"
+              >
+                ⚡ Simulate Submission
+              </button>
+
+              <button 
+                onClick={handleDeleteAll}
+                className="bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium px-4 py-2 rounded-lg border border-red-200 shadow-sm transition flex items-center gap-2"
+              >
+                🗑️ Delete All
+              </button>
+            </div>
+          </header>
+
+          {/* Main Container */}
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+            {/* Shared workspace status */}
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white border border-[#EADCEF] rounded-xl px-4 py-3 shadow-sm">
+              <p className="text-sm text-[#4A2E5D] font-semibold flex items-center gap-2">
+                <span className={`inline-block w-2 h-2 rounded-full ${syncError ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                Google Sheets Database · Live Sync Active
+              </p>
+              <p className="text-xs text-[#7B5B8E]">
+                {syncError
+                  ? `⚠️ ${syncError} — retrying automatically`
+                  : isLoading
+                    ? 'Loading sheet records…'
+                    : `Updated ${lastSyncedAt ? lastSyncedAt.toLocaleTimeString() : 'just now'} · refreshes every ${POLL_INTERVAL_MS / 1000}s`}
+              </p>
+            </div>
+
+            {/* Local records import banner */}
+            {legacyLocalRecords.length > 0 && (
+              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <p className="text-sm text-amber-900">
+                  📦 <strong>{legacyLocalRecords.length} records</strong> found in local storage. Sync them to Google Sheets?
+                </p>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={handleImportLocalRecords}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow transition"
+                  >
+                    Sync to Sheet
+                  </button>
+                  <button
+                    onClick={handleDismissLocalRecords}
+                    className="bg-white hover:bg-amber-100 text-amber-800 text-xs font-medium px-3 py-2 rounded-lg border border-amber-300 transition"
+                  >
+                    Discard
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Dashboard Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <div className="bg-white border border-[#EADCEF] rounded-xl p-4 shadow-sm">
+                <p className="text-xs font-bold text-[#7B5B8E] uppercase tracking-wider">Total Submissions</p>
+                <p className="text-3xl font-extrabold mt-2 text-[#4A2E5D]">{totalSubmissions}</p>
+              </div>
+              <div className="bg-white border border-[#EADCEF] rounded-xl p-4 shadow-sm">
+                <p className="text-xs font-bold text-[#7B5B8E] uppercase tracking-wider">Pending Action</p>
+                <p className="text-3xl font-extrabold mt-2 text-yellow-600">{pendingActionCount}</p>
+              </div>
+              <div className="bg-white border border-[#EADCEF] rounded-xl p-4 shadow-sm">
+                <p className="text-xs font-bold text-[#7B5B8E] uppercase tracking-wider">Reminders Due</p>
+                <p className="text-3xl font-extrabold mt-2 text-orange-600">{remindersDueCount}</p>
+              </div>
+              <div className="bg-white border border-[#EADCEF] rounded-xl p-4 shadow-sm">
+                <p className="text-xs font-bold text-[#7B5B8E] uppercase tracking-wider">Appointments Set</p>
+                <p className="text-3xl font-extrabold mt-2 text-emerald-600">{appointmentsSetCount}</p>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar Section */}
+            <div className="bg-white p-4 rounded-xl border border-[#EADCEF] mb-6 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
+              <div className="relative w-full md:w-96">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
+                <input 
+                  type="text" 
+                  placeholder="Search by name or phone..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#FAF8FC] border border-[#EADCEF] rounded-lg pl-10 pr-4 py-2 text-sm text-[#332D38] placeholder-gray-400 focus:outline-none focus:border-[#6B3FA0]"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <select 
+                  value={actionFilter} 
+                  onChange={(e) => setActionFilter(e.target.value)}
+                  className="bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                >
+                  <option>All action statuses</option>
+                  <option>Pending Action</option>
+                  <option>Called - Appointment Set</option>
+                  <option>Called - No Answer</option>
+                  <option>Called - Call Back Later</option>
+                  <option>Do Not Disturb</option>
+                </select>
+
+                <select 
+                  value={surveyFilter} 
+                  onChange={(e) => setSurveyFilter(e.target.value)}
+                  className="bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                >
+                  <option>All survey statuses</option>
+                  <option>Completed</option>
+                  <option>In Progress</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Client Submissions Feed */}
+            <div className="bg-white border border-[#EADCEF] rounded-2xl p-6 shadow-sm">
+              <div className="flex justify-between items-center mb-6 border-b border-[#EADCEF] pb-4">
+                <h2 className="text-lg font-bold tracking-wide uppercase text-[#4A2E5D]">Client Submissions</h2>
+                <span className="text-xs bg-[#F2ECF5] px-3 py-1 rounded-full text-[#6B3FA0] font-semibold">{filteredClients.length} records</span>
+              </div>
+
+              <div className="space-y-6">
+                {isLoading ? (
+                  <p className="text-center text-gray-400 py-8">Loading customer list from Google Sheets…</p>
+                ) : filteredClients.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8">
+                    {clients.length === 0
+                      ? "No customers yet. Add one or upload an Excel file."
+                      : "No client submissions found matching your search criteria."}
+                  </p>
+                ) : (
+                  filteredClients.map((client) => (
+                    <div key={client.id} className="bg-[#FAF8FC] border border-[#EADCEF] rounded-xl p-5 shadow-sm transition hover:border-[#6B3FA0]">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <h3 className="text-base font-bold text-[#332D38]">{client.name}</h3>
+                          <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                            client.surveyStatus === 'Completed' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                          }`}>
+                            {client.surveyStatus}
+                          </span>
+                          <span className="text-sm text-[#7B5B8E] font-mono">📞 {client.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-400">{formatTimeAgo(client.createdAt)}</span>
+                          <button 
+                            onClick={() => handleDeleteClient(client.id)}
+                            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1 rounded-lg border border-red-200 transition font-medium flex items-center gap-1"
+                            title="Remove this client"
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Call Action Status:</label>
+                          <select 
+                            value={client.actionStatus}
+                            onChange={(e) => handleClientUpdate(client.id, { actionStatus: e.target.value })}
+                            className="w-full bg-white border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0] font-medium"
+                          >
+                            <option>Pending Action</option>
+                            <option>Called - Appointment Set</option>
+                            <option>Called - No Answer</option>
+                            <option>Called - Call Back Later</option>
+                            <option>Do Not Disturb</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Reminder Timeframe:</label>
+                          <div className="flex gap-2">
+                            <select 
+                              value={client.reminderType || ""}
+                              onChange={(e) => handleReminderTypeChange(client.id, e.target.value)}
+                              className="w-full bg-white border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                            >
+                              <option value="">No reminder</option>
+                              <option value="1h">Remind in: 1h</option>
+                              <option value="2h">Remind in: 2h</option>
+                              <option value="tomorrow">Remind in: Tomorrow</option>
+                              <option value="custom">Remind in: Specific Date & Time</option>
+                            </select>
+                            {client.reminderType && (
+                              <button 
+                                onClick={() => handleReminderTypeChange(client.id, '')}
+                                className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg border border-red-200 transition"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {client.reminderType === 'custom' && (
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-[#EADCEF]">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#7B5B8E] mb-1">Reminder Date:</label>
+                            <input 
+                              type="date"
+                              value={client.reminderDate || ''}
+                              onChange={(e) => handleClientUpdate(client.id, { reminderDate: e.target.value })}
+                              className="w-full bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-1.5 text-xs text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#7B5B8E] mb-1">Reminder Time:</label>
+                            <input 
+                              type="time"
+                              value={client.reminderTime || ''}
+                              onChange={(e) => handleClientUpdate(client.id, { reminderTime: e.target.value })}
+                              className="w-full bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-1.5 text-xs text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {client.reminderType && (
+                        <div className="mt-3 bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs text-amber-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <span>🔔 <strong>Reminder set:</strong> Follow up with {client.name} {client.reminderType === 'custom' ? `on ${client.reminderDate || 'N/A'} at ${client.reminderTime || 'N/A'}` : `in ${client.reminderType}`}</span>
+                          <button 
+                            onClick={() => handleSyncToPhone(client)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1.5 text-xs"
+                          >
+                            📱 Sync to Phone Calendar
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="mt-4">
+                        <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Stylist Notes:</label>
+                        <textarea
+                          rows="2"
+                          placeholder="Type notes about preferences, sizes, or conversation..."
+                          value={client.note || ""}
+                          onChange={(e) => handleNoteChange(client.id, e.target.value)}
+                          className="w-full bg-white border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </main>
+
+          {/* Add Customer Modal */}
+          {isAddModalOpen && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-[#EADCEF]">
+                <h3 className="text-lg font-bold text-[#4A2E5D] mb-4">Add New Customer</h3>
+                <form onSubmit={handleAddManualCustomer} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Customer Name *</label>
+                    <input 
+                      type="text"
+                      required
+                      placeholder="e.g. Raniah Karam"
+                      value={newClient.name}
+                      onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                      className="w-full bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Phone Number *</label>
+                    <input 
+                      type="text"
+                      required
+                      placeholder="e.g. +961 70 123456"
+                      value={newClient.phone}
+                      onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+                      className="w-full bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Survey Status</label>
+                      <select 
+                        value={newClient.surveyStatus}
+                        onChange={(e) => setNewClient({ ...newClient, surveyStatus: e.target.value })}
+                        className="w-full bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                      >
+                        <option>Completed</option>
+                        <option>In Progress</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Action Status</label>
+                      <select 
+                        value={newClient.actionStatus}
+                        onChange={(e) => setNewClient({ ...newClient, actionStatus: e.target.value })}
+                        className="w-full bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                      >
+                        <option>Pending Action</option>
+                        <option>Called - Appointment Set</option>
+                        <option>Called - No Answer</option>
+                        <option>Called - Call Back Later</option>
+                        <option>Do Not Disturb</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#7B5B8E] mb-1">Initial Note</label>
+                    <textarea 
+                      rows="2"
+                      placeholder="Optional notes..."
+                      value={newClient.note}
+                      onChange={(e) => setNewClient({ ...newClient, note: e.target.value })}
+                      className="w-full bg-[#FAF8FC] border border-[#EADCEF] rounded-lg px-3 py-2 text-sm text-[#332D38] focus:outline-none focus:border-[#6B3FA0]"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddModalOpen(false)}
+                      className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      className="bg-[#6B3FA0] hover:bg-[#5A3289] text-white text-sm font-medium px-4 py-2 rounded-lg shadow transition"
+                    >
+                      Save Customer
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
 </body>
 </html>
